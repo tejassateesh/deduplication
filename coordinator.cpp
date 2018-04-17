@@ -6,7 +6,15 @@
 #include <string>
 #include <unordered_map>
 #include <ctype.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <errno.h>
+#include <arpa/inet.h>
 using namespace std;
+
+#define PORT 8080
 
 //Global Variables required
 
@@ -20,7 +28,36 @@ string clientIP;
 int sendReply(string data){ //Send reply back to the calling system
 
     //client : send flag data
-
+    struct sockaddr_in address;
+    int sock = 0, valread;
+    struct sockaddr_in serv_addr;
+    
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        cout<<"Socket creation error \n";
+        return -1;
+    }
+  
+    memset(&serv_addr, '0', sizeof(serv_addr));
+  
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(PORT);
+      
+    
+    if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0) 
+    {
+        cout<<"Invalid address/ Address not supported \n";
+        return -1;
+    }
+  
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+    {
+        cout<<"Connection Failed \n";
+        return -1;
+    }
+    send(sock , data.c_str() , data.length() , 0 );
+    
+    return 0;
 }
 
 int updateHashTable(string ipandinode,string hash){  //The hash table is updated with the new values
@@ -64,5 +101,7 @@ int listenToRequests(){ //Server program that keeps actively listening to any an
 }
 
 int main(){
-    listenToRequests();
+    for(;;){
+        listenToRequests();
+    }
 }
