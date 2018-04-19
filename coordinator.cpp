@@ -25,83 +25,117 @@ string clientIP;
 
 //Modules start here
 
-int sendReply(string data){ //Send reply back to the calling system
+int eraseOldHash(string ipandinode){    //Erases the old hash value of a modified file
 
-    //client : send flag data
-    struct sockaddr_in address;
-    int sock = 0, valread;
-    struct sockaddr_in serv_addr;
-    
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        cout<<"Socket creation error \n";
-        return -1;
+    auto iterator = hashTable.begin();
+    while(iterator != hashTable.end()){
+        if(iterator->second == ipandinode){
+            hashTable.erase(iterator);
+            return 0;
+        }
     }
-  
-    memset(&serv_addr, '0', sizeof(serv_addr));
-  
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
-      
-    
-    if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0) 
-    {
-        cout<<"Invalid address/ Address not supported \n";
-        return -1;
-    }
-  
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-    {
-        cout<<"Connection Failed \n";
-        return -1;
-    }
-    send(sock , data.c_str() , data.length() , 0 );
-    
-    return 0;
+    cout<<"Old Hash not found"<<endl;
 }
 
-int updateHashTable(string ipandinode,string hash){  //The hash table is updated with the new values
+int addToHashTable(string ipandinode,string hash){  //The hash table is updated with the new values
 
-    hashTable.emplace(hash,ipandinode);
+    hashTable.insert(make_pair(hash,ipandinode));
 
 }
 
-string checkHashTable(string hash){ //Checks if there is a collision or not
+string checkHashTable(string ipandinode, string hash){ //Checks if there is a collision or not
     
     unordered_map<string,string>::const_iterator flag = hashTable.find(ipandinode);
+    string temp;
     if(flag == hashTable.end()){
-        flag = "N"+ipandinode;
+        temp = "N"+ipandinode;
+        addToHashTable(ipandinode,hash);
     }
     else{
-        flag = "D"+hashTable[hash];
+        temp = "D"+hashTable[hash];
+    }
+    return temp;
+}
+
+string respondToRequests(int options,string ipandinode,string hash){ //Server program that keeps actively listening to any and every requests to the coordinator
+    
+    string flag("");
+    
+    switch(options){
+        case '1'    :   //Newfile, check hashtable for collision
+                        flag = checkHashTable(ipandinode,hash);
+                        
+        break;
+
+        case '2'    :   //When only inode value needs to be updated - in case of inode change of original file
+                        eraseOldHash(ipandinode);
+                        addToHashTable(ipandinode,hash);
+        break;
+
+        case '3'    :   //When content of a pre-existing file has changed : update inode table and inform of the update?
+                        
+        break; 
+
+        default:    cout<<"Wrong option received"<<endl;
     }
     return flag;
 }
 
-int listenToRequests(){ //Server program that keeps actively listening to any and every requests to the coordinator
-    
-    int options;
-    string ipandinode,hash;
-    
-    //server
-    
-    switch(options){
-        case '1'    :   //newfile, check hashtable for collision
-                        // string flag = checkHashTable(hash);
-                        // updateHashTable(ipandinode,hash);
-                        
-        break;
+int sendReply(){ //Send reply back to the calling system
 
-        case '2'    :   //when only inode value needs to be updated
-                        // updateHashTable(ipandinode,hash);
-        break;
-
-        default:    cout<<"Wrong option received"<<endl;
+    //Server - listen to requests and send appropriate reply
+    int server_fd, new_socket, valread;
+    struct sockaddr_in address;
+    int opt = 1;
+    int addrlen = sizeof(address);
+    char buffer[1024] = {'\0'};;     
+    
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0){
+        cout<<"Socket failed"<<endl;
+        exit(EXIT_FAILURE);
     }
+      
+    
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,&opt, sizeof(opt))){
+        cout<<"Setsockopt failure"<<endl;
+        exit(EXIT_FAILURE);
+    }
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons( PORT );
+      
+    
+    if (bind(server_fd, (struct sockaddr *)&address,sizeof(address))<0){
+        cout<<"Bind failed"<<endl;
+        exit(EXIT_FAILURE);
+    }
+    if (listen(server_fd, 3) < 0)
+    {
+        cout<<"Listen Error"<<endl;
+        exit(EXIT_FAILURE);
+    }
+    if ((new_socket = accept(server_fd, (struct sockaddr *)&address,(socklen_t*)&addrlen))<0){
+        cout<<"Accept error"<<endl;
+        exit(EXIT_FAILURE);
+    }
+    valread = read( new_socket , buffer, 1024);
+    
+    //separate the ipandinode and hash value
+    string temp(buffer);
+    int i=0;
+    
+    while(temp[i]!='!')   i++;
+    int option = (int)temp[0]-'0';
+    string ipandinode = temp.substr(1,i);
+    string hash = temp.substr(i+1);
+
+    string data = respondToRequests(option,ipandinode,hash);
+    if(option==1){
+        send(new_socket , data.c_str() , data.length() , 0 );
+    }
+    return 0;
 }
 
 int main(){
-    for(;;){
-        listenToRequests();
-    }
+    // sendReply();
 }
