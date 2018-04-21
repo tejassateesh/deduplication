@@ -6,9 +6,18 @@
 #include <string>
 #include <unordered_map>
 #include <ctype.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <errno.h>
+#include <arpa/inet.h>
 using namespace std;
 
+#define PORT 8080
+
 //Global Variables required
+
 string hashsavefile = "./SaveHash.txt"; //File to store backup of the hash table, to reload when required
 string inodesavefile = "./SaveInode.txt"; //File to store backup of the inode table, to reload when required
 string ip = "192.168.0.1/"; //IP address of the machine
@@ -16,10 +25,6 @@ unordered_map <string,string>hashTable;
 unordered_map <string,string>inodeTable;
 
 //The Modules start here
-
-int listenToRequests(){ //Server Program to listen to incoming requests
-
-}
 
 string generateHash(string fileName){  //Calculate the MD5 hash for the file
 
@@ -41,27 +46,20 @@ int storeInode(string key, string value){ //To add the hash value and other deta
 
 }
 
-string callCoordinator(string ipandinode,string hashVal){   //Sends request to the coordinator to check if the file is duplicate or to notify any changes made to the file
+int deletedFile(string fileName){   //What happens when a file is deleted in this system
 
-//client
-string dataToSend = ipandinode + "-" + hashVal;
 }
 
-int requestHash(){  //Request hash value for duplicate files
+string callCoordinator(string ipandinode,string hashVal,string option){   //Sends request to the coordinator to check if the file is duplicate or to notify any changes made to the file
 
 //client
+string dataToSend = option + ipandinode + "!" + hashVal;
 
 }
 
 int requestFileContent()    {   //When the file is duplicate, this function requests the system with the file to send the contents when requested to display
 
 //client
-
-}
-
-int sendFileContent(string fileName){   //Sending the file content when other systems request it
-
-//server
 
 }
 
@@ -86,7 +84,7 @@ int newFile(string fileName){ //When a new file is found, this module handles th
     string hashVal = generateHash(fileName);
     
     //Returned value of Flag is in the format "{N/D}{IPandInode}": N=Not Duplicate, D=Duplicate.
-    // string flag = callCoordinator(ipandinode,hashVal);
+    // string flag = callCoordinator(ipandinode,hashVal,"1");
 
     // if(flag[0]=='N'){    //File content is unique and not present in any other system
         storeInode(fileName,ipandinode);
@@ -109,18 +107,21 @@ int modifiedFile(string fileName){ //When a file is modified or moved, this hand
     //Obtain old hash value
     string oldHash = hashTable[fileName];
     oldHash = oldHash.substr(1);
+    string option;
 
     string hashVal = generateHash(fileName);
     
     if(oldHash==hashVal){  //Location of save changed, content is same: update the inode of file in coordinator if original else only in local
-        
+        option = "2";
+
     }
     else{   //Content change
-
+        option = "1";
+        
         //Obtaining the INODE value of the file
         string ipandinode = inodeTable[fileName];
 
-        string flag = callCoordinator(ipandinode,hashVal);
+        string flag = callCoordinator(ipandinode,hashVal,option);
         
         if(flag[0]=='N'){    //File content is unique and not present in any other system
             storeHash(fileName,hashVal);
@@ -143,15 +144,15 @@ int main(int argc, char** argv){
     //Reload the hash and inode table
 
     string fileName(argv[2]);
-      
+    
     switch(atoi(argv[1])){
         case 1  :   newFile(fileName);
         break;
         case 2  :   modifiedFile(fileName);
         break;
-        case 3  :   sendFileContent(fileName);
-        break;
-        // case 4  :   changedName(oldFileName,NewFileName);
+        // case 3  :   changedName(oldFileName,NewFileName);
+        // break;
+        // case 4  :   deletedFile(fileName);
         // break;
         default :   cout<<"Wrong option, please retry!"<<endl;
     }

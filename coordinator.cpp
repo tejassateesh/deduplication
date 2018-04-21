@@ -76,6 +76,10 @@ string respondToRequests(int options,string ipandinode,string hash){ //Server pr
                         
         break; 
 
+        case '4'    :   //When a original file has been deleted in one of systems, obtain the content and then forward it to one of the systems that maintains a duplicate of that file, if it is duplicated in any case
+
+        break; 
+        
         default:    cout<<"Wrong option received"<<endl;
     }
     return flag;
@@ -128,8 +132,9 @@ int sendReply(){ //Send reply back to the calling system
     int option = (int)temp[0]-'0';
     string ipandinode = temp.substr(1,i);
     string hash = temp.substr(i+1);
-
+    
     string data = respondToRequests(option,ipandinode,hash);
+    
     if(option==1){
         send(new_socket , data.c_str() , data.length() , 0 );
     }
