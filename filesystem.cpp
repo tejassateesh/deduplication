@@ -15,6 +15,8 @@
 using namespace std;
 
 #define PORT 8080
+#define SERVER_ADDRESS ""
+#define MY_IP ""
 
 //Global Variables required
 
@@ -27,7 +29,22 @@ unordered_map <string,string>inodeTable;
 //The Modules start here
 
 string generateHash(string fileName){  //Calculate the MD5 hash for the file
+    
+    string command = "md5sum "+fileName;
+    char buffer[128];
+    string result;
 
+    FILE *fp = popen(command.c_str(), "r");
+    if(!fp){
+        cout<<"Command execution failed"<<endl;
+    }
+    while(fgets(buffer,128,fp) != NULL){
+        result += buffer;
+    }
+    pclose(fp);
+
+    result = result.substr(0,result.find(" "));
+    return result;
 }
 
 int storeHash(string key, string value){ //To add the hash value and other details to the filetable
@@ -52,14 +69,78 @@ int deletedFile(string fileName){   //What happens when a file is deleted in thi
 
 string callCoordinator(string ipandinode,string hashVal,string option){   //Sends request to the coordinator to check if the file is duplicate or to notify any changes made to the file
 
-//client
-string dataToSend = option + ipandinode + "!" + hashVal;
+    //Client calling the Coordinator
 
+    struct sockaddr_in address;
+    int sock = 0, valread, sockfd;
+    struct sockaddr_in serv_addr;
+    char buffer[1024] = {0};
+
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        cout<<"\n Socket creation error \n";
+    }
+    
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = inet_addr(MY_IP);
+    address.sin_port = 8080;
+    bind(sockfd, (struct sockaddr *)&address, sizeof(address));
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = inet_addr(SERVER_ADDRESS);
+    serv_addr.sin_port = htons(PORT);
+  
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+    {
+        cout<<"\nConnection to server failed \n";
+    }
+    
+    string dataToSend = option + ipandinode + "!" + hashVal;
+
+    send(sock , dataToSend.c_str() , dataToSend.length() , 0 );
+    valread = read(sock , buffer, 1024);
+
+    string retVal(buffer);
+    return retVal;
 }
 
-int requestFileContent()    {   //When the file is duplicate, this function requests the system with the file to send the contents when requested to display
+int requestFileContent(string fileName)    {   //When the file is duplicate, this function requests the system with the file to send the contents when requested to display
 
-//client
+    int i = 0;
+
+    string ipandinode = inodeTable[fileName];
+    
+    while(ipandinode[i] != '!') i++;
+
+    string ipToCall = ipandinode.substr(0,i-1);
+    string inodeToAccess = ipandinode.substr(i+1);
+    
+    //Client calling the system that has the file
+    struct sockaddr_in address;
+    int sock = 0, valread, sockfd;
+    struct sockaddr_in serv_addr;
+    char buffer[1024] = {0};
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        cout<<"\n Socket creation error \n";
+    }
+    
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = inet_addr(MY_IP);
+    address.sin_port = 8080;
+    bind(sockfd, (struct sockaddr *)&address, sizeof(address));
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = inet_addr(ipToCall.c_str());
+    serv_addr.sin_port = htons(PORT);
+  
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+    {
+        cout<<"\nConnection to server failed \n";
+    }
+    
+    send(sock , inodeToAccess.c_str() , inodeToAccess.length() , 0 );
+    valread = read(sock , buffer, 1024);
 
 }
 
@@ -84,22 +165,22 @@ int newFile(string fileName){ //When a new file is found, this module handles th
     string hashVal = generateHash(fileName);
     
     //Returned value of Flag is in the format "{N/D}{IPandInode}": N=Not Duplicate, D=Duplicate.
-    // string flag = callCoordinator(ipandinode,hashVal,"1");
+    string flag = callCoordinator(ipandinode,hashVal,"1");
 
-    // if(flag[0]=='N'){    //File content is unique and not present in any other system
+    if(flag[0]=='N'){    //File content is unique and not present in any other system
         storeInode(fileName,ipandinode);
         storeHash(fileName,hashVal);
-    // }
-    // else if(flag[0]=='D'){   //File content exists in some system, store only address
-        // ipandinode = flag.substr(1);
-        // storeInode(fileName,ipandinode);
-        // storeHash(fileName,hashVal);
+    }
+    else if(flag[0]=='D'){   //File content exists in some system, store only address
+        ipandinode = flag.substr(1);
+        storeInode(fileName,ipandinode);
+        storeHash(fileName,hashVal);
         //Delete file from the system
-    // }
-    // else{
-            // cout<<"Error while obtaining reply from coordinator"<<endl;
-            // return 0;
-        // }
+    }
+    else{
+            cout<<"Error while obtaining reply from coordinator"<<endl;
+            return 0;
+        }
 }
 
 int modifiedFile(string fileName){ //When a file is modified or moved, this handles the events
@@ -154,7 +235,8 @@ int main(int argc, char** argv){
         // break;
         // case 4  :   deletedFile(fileName);
         // break;
+        case 5  :   requestFileContent(fileName);
+        break;   
         default :   cout<<"Wrong option, please retry!"<<endl;
     }
-
 }
