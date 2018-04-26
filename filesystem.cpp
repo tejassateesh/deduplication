@@ -15,14 +15,14 @@
 using namespace std;
 
 #define PORT 8080
-#define SERVER_ADDRESS ""
-#define MY_IP ""
+#define SERVER_ADDRESS "127.0.0.1"
+#define MY_IP "127.0.0.1"
 
 //Global Variables required
 
 string hashsavefile = "./SaveHash.txt"; //File to store backup of the hash table, to reload when required
 string inodesavefile = "./SaveInode.txt"; //File to store backup of the inode table, to reload when required
-string ip = "192.168.0.1/"; //IP address of the machine
+string my_ip = "127.0.0.1/";
 unordered_map <string,string>hashTable;
 unordered_map <string,string>inodeTable;
 
@@ -110,11 +110,12 @@ int requestFileContent(string fileName)    {   //When the file is duplicate, thi
 
     string ipandinode = inodeTable[fileName];
     
-    while(ipandinode[i] != '!') i++;
-
-    string ipToCall = ipandinode.substr(0,i-1);
-    string inodeToAccess = ipandinode.substr(i+1);
+    while(ipandinode[i] != '/') i++;
+    //MYIP == ip?
     
+    string ipToCall = ipandinode.substr(0,i);
+    string inodeToAccess = ipandinode.substr(i+1);
+    cout<<"IPtoCall = "<<ipToCall<<"\ninodeToAccess = "<<inodeToAccess<<endl;
     //Client calling the system that has the file
     struct sockaddr_in address;
     int sock = 0, valread, sockfd;
@@ -141,6 +142,7 @@ int requestFileContent(string fileName)    {   //When the file is duplicate, thi
     
     send(sock , inodeToAccess.c_str() , inodeToAccess.length() , 0 );
     valread = read(sock , buffer, 1024);
+    cout<<buffer<<endl;
 
 }
 
@@ -157,24 +159,26 @@ int newFile(string fileName){ //When a new file is found, this module handles th
     else{
         inode = temp.st_ino;
     }
-
+    
     //IP address + Inode value of file - to obtain the IPandInode Pair Key to be sent to coordinator
-    string ipandinode = ip+to_string(inode);
-
+    string ipandinode = my_ip + to_string(inode);
     //Obtain the MD5 checksum
     string hashVal = generateHash(fileName);
     
     //Returned value of Flag is in the format "{N/D}{IPandInode}": N=Not Duplicate, D=Duplicate.
+    cout<<"Calling Coordinator\n";
     string flag = callCoordinator(ipandinode,hashVal,"1");
 
     if(flag[0]=='N'){    //File content is unique and not present in any other system
         storeInode(fileName,ipandinode);
         storeHash(fileName,hashVal);
+        cout<<"Not a duplicate File\n";
     }
     else if(flag[0]=='D'){   //File content exists in some system, store only address
         ipandinode = flag.substr(1);
         storeInode(fileName,ipandinode);
         storeHash(fileName,hashVal);
+        cout<<"Duplicate file, located in "<<ipandinode<<endl;
         //Delete file from the system
     }
     else{
@@ -187,14 +191,15 @@ int modifiedFile(string fileName){ //When a file is modified or moved, this hand
         
     //Obtain old hash value
     string oldHash = hashTable[fileName];
-    oldHash = oldHash.substr(1);
+    cout<<"old hash = "<<oldHash<<endl;
     string option;
 
     string hashVal = generateHash(fileName);
+    cout<<"New hash = "<<hashVal<<endl;
     
     if(oldHash==hashVal){  //Location of save changed, content is same: update the inode of file in coordinator if original else only in local
         option = "2";
-
+        cout<<"Same hash\n";
     }
     else{   //Content change
         option = "1";
@@ -207,11 +212,13 @@ int modifiedFile(string fileName){ //When a file is modified or moved, this hand
         if(flag[0]=='N'){    //File content is unique and not present in any other system
             storeHash(fileName,hashVal);
             storeInode(fileName,ipandinode);
+            cout<<"Not a duplicate File\n";
         }
         else if(flag[0]=='D'){   //File content exists in some system, store only address
             ipandinode = flag.substr(1);
             storeHash(fileName,hashVal);
             storeInode(fileName,ipandinode);
+            cout<<"Duplicate File\n";
         }
         else{
             cout<<"Error while obtaining reply from coordinator"<<endl;
@@ -220,23 +227,28 @@ int modifiedFile(string fileName){ //When a file is modified or moved, this hand
     }
 }
 
-int main(int argc, char** argv){
+int main(){
 
-    //Reload the hash and inode table
+    int opt;
+    string fileName;
 
-    string fileName(argv[2]);
-    
-    switch(atoi(argv[1])){
-        case 1  :   newFile(fileName);
-        break;
-        case 2  :   modifiedFile(fileName);
-        break;
-        // case 3  :   changedName(oldFileName,NewFileName);
-        // break;
-        // case 4  :   deletedFile(fileName);
-        // break;
-        case 5  :   requestFileContent(fileName);
-        break;   
-        default :   cout<<"Wrong option, please retry!"<<endl;
+
+    for(;;){
+        cout<<"Enter file name and option\n";
+        cin>>fileName>>opt;
+
+        switch(opt){
+            case 1  :   newFile(fileName);
+            break;
+            case 2  :   modifiedFile(fileName);
+            break;
+            // case 3  :   changedName(oldFileName,NewFileName);
+            // break;
+            // case 4  :   deletedFile(fileName);
+            // break;
+            case 5  :   requestFileContent(fileName);
+            break;   
+            default :   cout<<"Wrong option, please retry!"<<endl;
+        }
     }
 }

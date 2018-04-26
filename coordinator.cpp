@@ -19,7 +19,6 @@ using namespace std;
 //Global Variables required
 
 string savefile = "./Save.txt"; //File to store backup of the file table, to reload when required
-string ip = "192.168.0.9/"; //IP address of the machine
 unordered_map <string,string>hashTable;
 string clientIP;
 
@@ -45,14 +44,17 @@ int addToHashTable(string ipandinode,string hash){  //The hash table is updated 
 
 string checkHashTable(string ipandinode, string hash){ //Checks if there is a collision or not
     
-    unordered_map<string,string>::const_iterator flag = hashTable.find(ipandinode);
+    unordered_map<string,string>::const_iterator flag = hashTable.find(hash);
     string temp;
     if(flag == hashTable.end()){
         temp = "N"+ipandinode;
+        cout<<"Not dup\n";
         addToHashTable(ipandinode,hash);
     }
     else{
+        cout<<"dup\n";
         temp = "D"+hashTable[hash];
+        cout<<temp<<endl;
     }
     return temp;
 }
@@ -62,21 +64,21 @@ string respondToRequests(int options,string ipandinode,string hash){ //Server pr
     string flag("");
     
     switch(options){
-        case '1'    :   //Newfile, check hashtable for collision
+        case 1    :   //Newfile, check hashtable for collision
                         flag = checkHashTable(ipandinode,hash);
                         
         break;
 
-        case '2'    :   //When only inode value needs to be updated - in case of inode change of original file
+        case 2    :   //When only inode value needs to be updated - in case of inode change of original file
                         eraseOldHash(ipandinode);
                         addToHashTable(ipandinode,hash);
         break;
 
-        case '3'    :   //When content of a pre-existing file has changed : update inode table and inform of the update?
+        case 3    :   //When content of a pre-existing file has changed : update inode table and inform of the update?
                         
         break; 
 
-        case '4'    :   //When a original file has been deleted in one of systems, obtain the content and then forward it to one of the systems that maintains a duplicate of that file, if it is duplicated in any case
+        case 4   :   //When a original file has been deleted in one of systems, obtain the content and then forward it to one of the systems that maintains a duplicate of that file, if it is duplicated in any case
 
         break; 
         
@@ -123,24 +125,28 @@ int sendReply(){ //Send reply back to the calling system
         exit(EXIT_FAILURE);
     }
     valread = read( new_socket , buffer, 1024);
-    
-    //separate the ipandinode and hash value
+    cout<<"Received Value\n";
+    // separate the ipandinode and hash value
     string temp(buffer);
     int i=0;
     
     while(temp[i]!='!')   i++;
     int option = (int)temp[0]-'0';
-    string ipandinode = temp.substr(1,i);
+    string ipandinode = temp.substr(1,i-1);
     string hash = temp.substr(i+1);
-    
+    cout<<"IP and Inode = "<<ipandinode<<"\nHash = "<<hash<<endl;
     string data = respondToRequests(option,ipandinode,hash);
     
     if(option==1){
         send(new_socket , data.c_str() , data.length() , 0 );
     }
+    close(new_socket);
+    close(server_fd);
     return 0;
 }
 
 int main(){
-    // sendReply();
+    cout<<"1"<<endl;  
+    for(;;)
+        sendReply();
 }

@@ -18,11 +18,42 @@
 using namespace std;
 
 #define PORT 8080
-#define SERVER_ADDRESS ""
-#define MY_IP ""
+#define SERVER_ADDRESS "127.0.0.1"
+#define MY_IP "127.0.0.1"
 
-int sendFileContent(string fileName){   //Sending the file content when other systems request it
+string sendFileContent(string fileInode){   //Sending the file content when other systems request it
+    
+    string command;
+    char buffer[128];
+    string result;
 
+    //Obtaining filename
+    command = "find -inum "+fileInode;
+    
+    FILE *fp = popen(command.c_str(), "r");
+    if(!fp){
+        cout<<"Command execution failed"<<endl;
+    }
+    while(fgets(buffer,128,fp) != NULL){
+        result += buffer;
+    }
+    pclose(fp);
+    cout<<result<<endl;
+    string fileName = result;
+    
+    result = "";
+
+    command = "cat "+fileName;
+    
+    fp = popen(command.c_str(), "r");
+    if(!fp){
+        cout<<"Command execution failed"<<endl;
+    }
+    while(fgets(buffer,128,fp) != NULL){
+        result += buffer;
+    }
+    pclose(fp);
+    return result;
 }
 
 int listenToRequests(){ //Socket that always listens to any request from any system in the network
@@ -66,12 +97,9 @@ int listenToRequests(){ //Socket that always listens to any request from any sys
     valread = read(new_socket , buffer, 1024);
 
     string dataReceived(buffer);
-    //What must be done here? ROFL
 
-    //Call the fileHandler program with appropriate options
-
-    string dataToSend;//=????????????
-
+    string dataToSend = sendFileContent(dataReceived);
+    cout<<dataToSend<<endl;
     send(new_socket , dataToSend.c_str() , dataToSend.length() , 0 );
     return 0;
 
